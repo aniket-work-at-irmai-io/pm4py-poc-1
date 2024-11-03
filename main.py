@@ -1,7 +1,7 @@
 import pandas as pd
 import pm4py
 
-df = pd.read_csv('data/running_example.csv', sep=';')
+df = pd.read_csv('staging/running_example.csv', sep=';')
 print(df)
 
 
