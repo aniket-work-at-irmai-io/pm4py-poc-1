@@ -13,10 +13,22 @@ from pm4py.algo.evaluation.replay_fitness import algorithm as replay_fitness
 from pm4py.algo.evaluation.precision import algorithm as precision_evaluator
 import os
 
-from risk_analysis import ProcessRiskAnalyzer, EnhancedFMEA
+from risk_analysis import ProcessPathAnalyzer, EventLogAnalyzer, EnhancedRiskAnalyzer
 
 # Set up Graphviz path
 os.environ["PATH"] += os.pathsep + 'C:/samadhi/technology/Graphviz/bin'
+
+
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('process_mining.log'),
+        logging.StreamHandler()
+    ]
+)
 
 # Set page configuration
 st.set_page_config(
@@ -140,17 +152,67 @@ def visualize_results(bpmn_graph, risk_assessment_results):
 
 
 def process_mining_with_risk_assessment(event_log, bpmn_graph):
-    """Perform risk assessment on process model"""
-    # Initialize analyzers
-    risk_analyzer = ProcessRiskAnalyzer(event_log, bpmn_graph)
-    risk_analyzer.analyze_bpmn_graph()
+    """Main function to perform risk assessment on process model"""
+    try:
+        # Initialize risk analyzer with proper parameters
+        risk_analyzer = EnhancedRiskAnalyzer(
+            event_log=event_log,
+            bpmn_graph=bpmn_graph
+        )
 
-    # Perform FMEA
-    fmea = EnhancedFMEA(risk_analyzer.failure_modes, risk_analyzer.activity_stats)
-    risk_assessment_results = fmea.assess_risk()
+        # Get risk assessment results
+        risk_assessment_results = risk_analyzer.analyze_risks()
 
-    return bpmn_graph, risk_assessment_results
+        # Get process metrics
+        process_metrics = risk_analyzer.path_analyzer.process_metrics
 
+        return bpmn_graph, risk_assessment_results, process_metrics
+
+    except Exception as e:
+        print(f"Error in risk assessment: {str(e)}")
+        raise
+
+
+def visualize_risk_distribution(risk_assessment_results):
+    """Create visualization of risk distribution"""
+    import plotly.graph_objects as go
+
+    # Extract data
+    activities = [r['failure_mode'] for r in risk_assessment_results]
+    rpn_values = [r['rpn'] for r in risk_assessment_results]
+    severities = [r['severity'] for r in risk_assessment_results]
+    likelihoods = [r['likelihood'] for r in risk_assessment_results]
+
+    # Create bubble chart
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=severities,
+        y=likelihoods,
+        mode='markers',
+        marker=dict(
+            size=[r['rpn'] * 5 for r in risk_assessment_results],
+            color=rpn_values,
+            colorscale='Viridis',
+            showscale=True,
+            colorbar=dict(title="RPN")
+        ),
+        text=activities,
+        hovertemplate=
+        "<b>Activity:</b> %{text}<br>" +
+        "<b>Severity:</b> %{x:.2f}<br>" +
+        "<b>Likelihood:</b> %{y:.2f}<br>" +
+        "<b>RPN:</b> %{marker.color:.2f}<br>"
+    ))
+
+    fig.update_layout(
+        title="Risk Distribution Matrix",
+        xaxis_title="Severity",
+        yaxis_title="Likelihood",
+        showlegend=False
+    )
+
+    return fig
 
 def main():
     # Header
@@ -201,67 +263,61 @@ def main():
                 with metrics_col2:
                     st.metric("Precision Score", f"{precision:.2f}")
 
-            # Risk Assessment Tab
-            with tabs[1]:
-                st.subheader("Risk Analysis")
-                with st.spinner('Performing risk assessment...'):
-                    try:
-                        # Perform risk assessment
-                        bpmn_graph, risk_assessment_results = process_mining_with_risk_assessment(event_log, bpmn_graph)
+                    # Risk Assessment Tab
+                    with tabs[1]:
+                        st.subheader("Risk Analysis")
+                        with st.spinner('Performing risk assessment...'):
+                            try:
+                                # Perform risk assessment with new analyzers
+                                bpmn_graph, risk_assessment_results, process_metrics = process_mining_with_risk_assessment(
+                                    event_log, bpmn_graph
+                                )
 
-                        # Display overview metrics
-                        total_risks = len(risk_assessment_results)
-                        high_risks = sum(1 for r in risk_assessment_results if r['rpn'] > 200)
-                        avg_rpn = sum(r['rpn'] for r in risk_assessment_results) / total_risks if total_risks > 0 else 0
+                                # Display process metrics
+                                st.write("### Process Metrics")
+                                metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
+                                with metrics_col1:
+                                    st.metric("Total Activities", process_metrics['tasks'])
+                                with metrics_col2:
+                                    st.metric("Decision Points", process_metrics['decision_points'])
+                                with metrics_col3:
+                                    st.metric("Process Complexity",
+                                              f"{process_metrics['process_complexity']:.2f}")
 
-                        risk_metrics_col1, risk_metrics_col2, risk_metrics_col3 = st.columns(3)
-                        with risk_metrics_col1:
-                            st.metric("Total Risks Identified", total_risks)
-                        with risk_metrics_col2:
-                            st.metric("High Priority Risks", high_risks)
-                        with risk_metrics_col3:
-                            st.metric("Average RPN", f"{avg_rpn:.1f}")
+                                if not risk_assessment_results:
+                                    st.warning("No risks identified in the process.")
+                                else:
+                                    # Display risk assessment results
+                                    st.write("### Risk Assessment Results")
+                                    for risk in risk_assessment_results:
+                                        with st.expander(
+                                                f"Risk: {risk['failure_mode']} (RPN: {risk['rpn']})"
+                                        ):
+                                            cols = st.columns(3)
+                                            with cols[0]:
+                                                st.metric("Severity", f"{risk['severity']:.2f}")
+                                            with cols[1]:
+                                                st.metric("Likelihood", f"{risk['likelihood']:.2f}")
+                                            with cols[2]:
+                                                st.metric("Detectability", f"{risk['detectability']:.2f}")
 
-                        # Display detailed risk assessment results
-                        st.write("### Detailed Risk Assessment")
+                                            st.write("#### Structural Details")
+                                            st.json(risk['structural_details'])
 
-                        # Sort results by RPN
-                        sorted_results = sorted(risk_assessment_results, key=lambda x: x['rpn'], reverse=True)
+                                            if 'recommendations' in risk and risk['recommendations']:
+                                                st.write("#### Recommendations")
+                                                for rec in risk['recommendations']:
+                                                    st.write(f"- {rec}")
 
-                        for result in sorted_results:
-                            # Create an expander for each risk
-                            with st.expander(
-                                    f"Risk Level: {'🔴 High' if result['rpn'] > 200 else '🟡 Medium' if result['rpn'] > 100 else '🟢 Low'} - "
-                                    f"{result['failure_mode']} (RPN: {result['rpn']})"
-                            ):
-                                # Display risk metrics
-                                col1, col2, col3 = st.columns(3)
-                                with col1:
-                                    st.metric("Severity", result['severity'],
-                                              delta="Critical" if result['severity'] > 7 else None,
-                                              delta_color="inverse")
-                                with col2:
-                                    st.metric("Likelihood", result['likelihood'],
-                                              delta="High" if result['likelihood'] > 7 else None,
-                                              delta_color="inverse")
-                                with col3:
-                                    st.metric("Detectability", result['detectability'],
-                                              delta="Poor" if result['detectability'] > 7 else None,
-                                              delta_color="inverse")
+                                    # Add visualization of risk distribution
+                                    st.write("### Risk Distribution")
+                                    fig = visualize_risk_distribution(risk_assessment_results)
+                                    st.plotly_chart(fig)
 
-                                # Display recommendations
-                                st.write("#### Recommendations:")
-                                for rec in result['recommendations']:
-                                    st.write(f"- {rec}")
-
-                        # Generate and display risk heatmap
-                        st.write("### Risk Heatmap")
-                        fig = generate_risk_heatmap(risk_assessment_results)  # You'll need to implement this function
-                        st.plotly_chart(fig)
-
-                    except Exception as e:
-                        st.error(f"Error in risk assessment: {str(e)}")
-                        st.write("Please check the format of your event log and ensure all required data is present.")
+                            except Exception as e:
+                                st.error("Error in risk assessment:")
+                                st.error(str(e))
+                                st.write("Please check your event log format and ensure all required data is present.")
 
             # Visualizations Tab
             with tabs[2]:
