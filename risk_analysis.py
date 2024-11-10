@@ -605,6 +605,11 @@ class EnhancedRiskAnalyzer:
                         rpn = (severity * likelihood * detectability) / 100
                         logger.debug(f"Calculated RPN for {failure_mode.node_id}: {rpn}")
 
+                        # Generate recommendations based on risk scores
+                        recommendations = self._generate_recommendations(
+                            severity, likelihood, detectability, failure_mode
+                        )
+
                         risk_assessment.append({
                             'failure_mode': failure_mode.description,
                             'node_id': failure_mode.node_id,
@@ -619,7 +624,8 @@ class EnhancedRiskAnalyzer:
                                 'downstream_activities': len(failure_mode.downstream_activities),
                                 'upstream_activities': len(failure_mode.upstream_activities),
                                 'process_position': 'Critical Path' if failure_mode.critical_path else 'Normal Path'
-                            }
+                            },
+                            'recommendations': recommendations  # Added recommendations to the output
                         })
                         logger.debug(f"Added risk assessment for {failure_mode.node_id}")
 
@@ -877,35 +883,77 @@ class EnhancedRiskAnalyzer:
         """Generate risk mitigation recommendations"""
         recommendations = []
 
-        node = self.bpmn_utils.get_node_by_id(failure_mode.node_id)
-        if not node:
-            return recommendations
+        # Activity-specific recommendations
+        recommendations.append(f"Perform detailed review of '{failure_mode.description}' process")
 
         # High severity recommendations
         if severity > 7:
-            recommendations.append(f"Critical activity '{failure_mode.description}' requires immediate attention")
-            recommendations.append("Consider adding redundancy or fallback mechanisms")
+            recommendations.extend([
+                f"Critical activity '{failure_mode.description}' requires immediate attention",
+                "Consider adding redundancy or fallback mechanisms",
+                "Implement additional control measures",
+                "Review and strengthen quality controls"
+            ])
+        elif severity > 5:
+            recommendations.extend([
+                "Review control measures periodically",
+                "Consider process standardization"
+            ])
 
         # High likelihood recommendations
         if likelihood > 7:
-            recommendations.append("Implement additional validation checks")
-            recommendations.append("Consider process simplification to reduce failure points")
+            recommendations.extend([
+                "Implement additional validation checks",
+                "Consider process simplification to reduce failure points",
+                "Increase monitoring frequency",
+                "Provide additional training to process operators"
+            ])
+        elif likelihood > 5:
+            recommendations.extend([
+                "Review process triggers and inputs",
+                "Monitor for early warning signs"
+            ])
 
         # Poor detectability recommendations
         if detectability > 7:
-            recommendations.append("Add monitoring points for better failure detection")
-            recommendations.append("Implement automated testing and verification")
+            recommendations.extend([
+                "Add monitoring points for better failure detection",
+                "Implement automated testing and verification",
+                "Setup real-time alerts for critical parameters",
+                "Enhance process visibility through dashboards"
+            ])
+        elif detectability > 5:
+            recommendations.extend([
+                "Review monitoring mechanisms",
+                "Consider additional checkpoints"
+            ])
 
         # Critical path recommendations
         if failure_mode.critical_path:
-            recommendations.append("Consider parallel processing to reduce critical path risk")
+            recommendations.extend([
+                "Consider parallel processing to reduce critical path risk",
+                "Review resource allocation and bottlenecks",
+                "Implement priority handling mechanisms"
+            ])
 
         # Complex path recommendations
         if failure_mode.path_complexity > 0.7:
-            recommendations.append("Simplify process flow to reduce complexity")
-            recommendations.append("Add intermediate validation steps")
+            recommendations.extend([
+                "Simplify process flow to reduce complexity",
+                "Add intermediate validation steps",
+                "Consider breaking down into sub-processes",
+                "Review decision points and simplify where possible"
+            ])
 
-        return recommendations
+        # Remove any duplicates while maintaining order
+        seen = set()
+        unique_recommendations = []
+        for rec in recommendations:
+            if rec not in seen:
+                seen.add(rec)
+                unique_recommendations.append(rec)
+
+        return unique_recommendations
 
 
 def process_mining_with_risk_assessment(event_log, bpmn_graph):
