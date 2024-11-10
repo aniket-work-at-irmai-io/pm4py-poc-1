@@ -32,7 +32,7 @@ logging.basicConfig(
 
 # Set page configuration
 st.set_page_config(
-    page_title="IRAMI OC Process Mining Dashboard",
+    page_title="IRMAI Process Analytics",
     page_icon="📊",
     layout="wide"
 )
@@ -216,8 +216,8 @@ def visualize_risk_distribution(risk_assessment_results):
 
 def main():
     # Header
-    st.title("🔄 IRAMI OC Process Mining Dashboard")
-    st.markdown("### Professional Process Mining Analysis Tool")
+    st.title("🔄 IRMAI Process Analytics")
+    st.markdown("### Process Analytics Tool")
 
     # Instructions
     st.info(
@@ -383,7 +383,7 @@ def main():
     st.markdown(
         """
         <div style='text-align: center'>
-            <p>© 2024 IRAMI OC Process Mining. All rights reserved.</p>
+            <p>© 2024 IRMAI OC Process Mining. All rights reserved.</p>
             <p>Professional Process Mining Solutions</p>
         </div>
         """,
