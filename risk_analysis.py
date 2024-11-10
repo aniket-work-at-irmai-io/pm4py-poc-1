@@ -17,8 +17,8 @@ class FailureMode:
     node_id: str
     node_type: str
     description: str
-    upstream_activities: List[str]
-    downstream_activities: List[str]
+    upstream_activities: List[str]  # List of node IDs
+    downstream_activities: List[str]  # List of node IDs
     critical_path: bool = False
     path_complexity: float = 0.0
 
@@ -144,15 +144,23 @@ class ProcessPathAnalyzer:
             return 0.0
 
         # Get downstream and upstream nodes using IDs
-        downstream = self.bpmn_utils.get_downstream_nodes(node_id)
-        upstream = self.bpmn_utils.get_upstream_nodes(node_id)
+        downstream_ids = self.bpmn_utils.get_downstream_nodes(node_id)
+        upstream_ids = self.bpmn_utils.get_upstream_nodes(node_id)
+
+        # Get actual nodes from IDs
+        downstream_nodes = [self.bpmn_utils.get_node_by_id(n_id) for n_id in downstream_ids]
+        upstream_nodes = [self.bpmn_utils.get_node_by_id(n_id) for n_id in upstream_ids]
+
+        # Filter out None values
+        downstream_nodes = [n for n in downstream_nodes if n is not None]
+        upstream_nodes = [n for n in upstream_nodes if n is not None]
 
         complexity_factors = {
-            'downstream_decisions': sum(1 for n in downstream
+            'downstream_decisions': sum(1 for n in downstream_nodes
                                         if hasattr(n, 'type') and 'exclusive' in n.type.lower()),
-            'downstream_parallels': sum(1 for n in downstream
+            'downstream_parallels': sum(1 for n in downstream_nodes
                                         if hasattr(n, 'type') and 'parallel' in n.type.lower()),
-            'upstream_merges': sum(1 for n in upstream
+            'upstream_merges': sum(1 for n in upstream_nodes
                                    if self.bpmn_utils.is_gateway(n.id)),
             'path_count': sum(1 for path in self.paths if node_id in path),
             'is_in_cycle': self._is_in_cycle(node_id)
@@ -511,56 +519,45 @@ class EnhancedRiskAnalyzer:
     def _identify_failure_modes(self) -> List[FailureMode]:
         """Identify potential failure modes from BPMN structure"""
         failure_modes = []
-        try:
-            logger.info("Starting failure mode identification")
+        logger.info("Starting failure mode identification")
 
-            for node in self.bpmn_utils.get_all_nodes():
-                logger.debug(f"Processing node: {node.id if hasattr(node, 'id') else str(node)}")
+        for node in self.bpmn_utils.get_all_nodes():
+            logger.debug(f"Processing node: {node.id}")
 
-                if self.bpmn_utils.is_task(node.id):
-                    logger.debug(f"Node {node.id} is a task, analyzing...")
+            if self.bpmn_utils.is_task(node.id):
+                logger.debug(f"Node {node.id} is a task, analyzing...")
 
-                    try:
-                        # Get upstream and downstream activities
-                        logger.debug(f"Getting upstream nodes for {node.id}")
-                        upstream = [n.id for n in self.bpmn_utils.get_upstream_nodes(node.id)]
-                        logger.debug(f"Upstream nodes: {upstream}")
+                try:
+                    # Get upstream and downstream activities
+                    upstream_ids = list(self.bpmn_utils.get_upstream_nodes(node.id))
+                    downstream_ids = list(self.bpmn_utils.get_downstream_nodes(node.id))
 
-                        logger.debug(f"Getting downstream nodes for {node.id}")
-                        downstream = [n.id for n in self.bpmn_utils.get_downstream_nodes(node.id)]
-                        logger.debug(f"Downstream nodes: {downstream}")
+                    # Check if node is in critical path
+                    is_critical = node.id in self.path_analyzer.critical_path
+                    logger.debug(f"Node {node.id} critical path status: {is_critical}")
 
-                        # Check if node is in critical path
-                        is_critical = node.id in self.path_analyzer.critical_path
-                        logger.debug(f"Node {node.id} critical path status: {is_critical}")
+                    # Calculate path complexity
+                    path_complexity = self.path_analyzer.calculate_path_complexity(node.id)
+                    logger.debug(f"Node {node.id} path complexity: {path_complexity}")
 
-                        # Calculate path complexity
-                        path_complexity = self.path_analyzer.calculate_path_complexity(node.id)
-                        logger.debug(f"Node {node.id} path complexity: {path_complexity}")
+                    # Create failure mode
+                    failure_mode = FailureMode(
+                        node_id=node.id,
+                        node_type=node.type,
+                        description=f"Failure in {node.name or node.id}",
+                        upstream_activities=upstream_ids,
+                        downstream_activities=downstream_ids,
+                        critical_path=is_critical,
+                        path_complexity=path_complexity
+                    )
 
-                        # Create failure mode
-                        failure_mode = FailureMode(
-                            node_id=node.id,
-                            node_type=node.type if hasattr(node, 'type') else 'unknown',
-                            description=f"Failure in {node.name if hasattr(node, 'name') else node.type}",
-                            upstream_activities=upstream,
-                            downstream_activities=downstream,
-                            critical_path=is_critical,
-                            path_complexity=path_complexity
-                        )
+                    failure_modes.append(failure_mode)
+                    logger.debug(f"Added failure mode for node {node.id}")
 
-                        failure_modes.append(failure_mode)
-                        logger.debug(f"Added failure mode for node {node.id}")
-
-                    except Exception as e:
-                        logger.error(f"Error processing node {node.id}: {str(e)}")
-                        logger.error(traceback.format_exc())
-                        continue
-
-        except Exception as e:
-            logger.error(f"Error in failure mode identification: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise
+                except Exception as e:
+                    logger.error(f"Error processing node {node.id}: {str(e)}")
+                    logger.error(traceback.format_exc())
+                    continue
 
         logger.info(f"Identified {len(failure_modes)} failure modes")
         return failure_modes
@@ -575,40 +572,56 @@ class EnhancedRiskAnalyzer:
                 logger.debug(f"Analyzing failure mode: {failure_mode.description}")
 
                 try:
+                    # Get node and verify it exists
                     node = self.bpmn_utils.get_node_by_id(failure_mode.node_id)
-                    if node is None:
+                    if not node:
                         logger.warning(f"Node not found for failure mode: {failure_mode.node_id}")
                         continue
 
-                    logger.debug(f"Calculating severity for {failure_mode.node_id}")
-                    severity = self.calculate_severity(failure_mode)
+                    # Calculate all risk components with proper error handling
+                    try:
+                        logger.debug(f"Calculating severity for {failure_mode.node_id}")
+                        severity = self.calculate_severity(failure_mode)
+                    except Exception as e:
+                        logger.error(f"Error calculating severity: {str(e)}")
+                        continue
 
-                    logger.debug(f"Calculating likelihood for {failure_mode.node_id}")
-                    likelihood = self.calculate_likelihood(failure_mode)
+                    try:
+                        logger.debug(f"Calculating likelihood for {failure_mode.node_id}")
+                        likelihood = self.calculate_likelihood(failure_mode)
+                    except Exception as e:
+                        logger.error(f"Error calculating likelihood: {str(e)}")
+                        continue
 
-                    logger.debug(f"Calculating detectability for {failure_mode.node_id}")
-                    detectability = self.calculate_detectability(failure_mode)
+                    try:
+                        logger.debug(f"Calculating detectability for {failure_mode.node_id}")
+                        detectability = self.calculate_detectability(failure_mode)
+                    except Exception as e:
+                        logger.error(f"Error calculating detectability: {str(e)}")
+                        continue
 
-                    rpn = (severity * likelihood * detectability) / 100
-                    logger.debug(f"Calculated RPN for {failure_mode.node_id}: {rpn}")
+                    # Only proceed if all calculations were successful
+                    if all(isinstance(x, (int, float)) for x in [severity, likelihood, detectability]):
+                        rpn = (severity * likelihood * detectability) / 100
+                        logger.debug(f"Calculated RPN for {failure_mode.node_id}: {rpn}")
 
-                    risk_assessment.append({
-                        'failure_mode': failure_mode.description,
-                        'node_id': failure_mode.node_id,
-                        'node_type': failure_mode.node_type,
-                        'severity': round(severity, 2),
-                        'likelihood': round(likelihood, 2),
-                        'detectability': round(detectability, 2),
-                        'rpn': round(rpn, 2),
-                        'critical_path': failure_mode.critical_path,
-                        'path_complexity': failure_mode.path_complexity,
-                        'structural_details': {
-                            'downstream_activities': len(failure_mode.downstream_activities),
-                            'upstream_activities': len(failure_mode.upstream_activities),
-                            'process_position': 'Critical Path' if failure_mode.critical_path else 'Normal Path'
-                        }
-                    })
-                    logger.debug(f"Added risk assessment for {failure_mode.node_id}")
+                        risk_assessment.append({
+                            'failure_mode': failure_mode.description,
+                            'node_id': failure_mode.node_id,
+                            'node_type': failure_mode.node_type,
+                            'severity': round(severity, 2),
+                            'likelihood': round(likelihood, 2),
+                            'detectability': round(detectability, 2),
+                            'rpn': round(rpn, 2),
+                            'critical_path': failure_mode.critical_path,
+                            'path_complexity': failure_mode.path_complexity,
+                            'structural_details': {
+                                'downstream_activities': len(failure_mode.downstream_activities),
+                                'upstream_activities': len(failure_mode.upstream_activities),
+                                'process_position': 'Critical Path' if failure_mode.critical_path else 'Normal Path'
+                            }
+                        })
+                        logger.debug(f"Added risk assessment for {failure_mode.node_id}")
 
                 except Exception as e:
                     logger.error(f"Error analyzing failure mode {failure_mode.node_id}: {str(e)}")
@@ -629,7 +642,7 @@ class EnhancedRiskAnalyzer:
         if not node:
             return 0.0
 
-        # Calculate severity components
+        # Calculate severity components with proper node ID handling
         severity_factors = {
             'gateway_impact': self._calculate_gateway_impact(failure_mode.node_id),
             'path_criticality': self._calculate_path_criticality(failure_mode),
@@ -664,32 +677,71 @@ class EnhancedRiskAnalyzer:
 
     def calculate_detectability(self, failure_mode: FailureMode) -> float:
         """Calculate how easily failures can be detected"""
-        node = self.bpmn_utils.get_node_by_id(failure_mode.node_id)
-        if not node:
+        try:
+            node = self.bpmn_utils.get_node_by_id(failure_mode.node_id)
+            if not node:
+                logger.warning(f"Node not found for detectability calculation: {failure_mode.node_id}")
+                return 0.0
+
+            # Calculate all detectability factors with proper error handling
+            detectability_factors = {}
+
+            try:
+                detectability_factors['monitoring_points'] = self._count_monitoring_points(failure_mode.node_id)
+            except Exception as e:
+                logger.error(f"Error calculating monitoring points: {str(e)}")
+                detectability_factors['monitoring_points'] = 0.0
+
+            try:
+                detectability_factors['event_monitoring'] = self._analyze_event_monitoring(failure_mode.node_id)
+            except Exception as e:
+                logger.error(f"Error analyzing event monitoring: {str(e)}")
+                detectability_factors['event_monitoring'] = 0.0
+
+            try:
+                detectability_factors['gateway_detection'] = self._analyze_gateway_detection(failure_mode.node_id)
+            except Exception as e:
+                logger.error(f"Error analyzing gateway detection: {str(e)}")
+                detectability_factors['gateway_detection'] = 0.0
+
+            try:
+                detectability_factors['message_monitoring'] = self._analyze_message_monitoring(failure_mode.node_id)
+            except Exception as e:
+                logger.error(f"Error analyzing message monitoring: {str(e)}")
+                detectability_factors['message_monitoring'] = 0.0
+
+            # Calculate overall detectability if we have any valid factors
+            if detectability_factors:
+                detectability = sum(detectability_factors.values()) / len(detectability_factors)
+                # Convert to detectability score (inverse of detection ease)
+                detectability_score = min((1 - detectability) * 10, 10)
+                logger.debug(f"Calculated detectability score for {failure_mode.node_id}: {detectability_score}")
+                return detectability_score
+            else:
+                logger.warning(f"No valid detectability factors for {failure_mode.node_id}")
+                return 0.0
+
+        except Exception as e:
+            logger.error(f"Error in detectability calculation for {failure_mode.node_id}: {str(e)}")
+            logger.error(traceback.format_exc())
             return 0.0
-
-        detectability_factors = {
-            'monitoring_points': self._count_monitoring_points(failure_mode.node_id),
-            'event_monitoring': self._analyze_event_monitoring(failure_mode.node_id),
-            'gateway_detection': self._analyze_gateway_detection(failure_mode.node_id),
-            'message_monitoring': self._analyze_message_monitoring(failure_mode.node_id)
-        }
-
-        detectability = sum(detectability_factors.values()) / len(detectability_factors)
-        return min((1 - detectability) * 10, 10)
 
     def _calculate_gateway_impact(self, node_id: str) -> float:
         """Calculate impact based on gateway patterns"""
-        downstream = self.bpmn_utils.get_downstream_nodes(node_id)
+        # Get downstream nodes as IDs
+        downstream_ids = self.bpmn_utils.get_downstream_nodes(node_id)
         impact = 0.0
 
-        for node in downstream:
-            if 'exclusive' in node.type.lower():
-                impact += 0.5
-            elif 'parallel' in node.type.lower():
-                impact += 0.3
-            elif 'inclusive' in node.type.lower():
-                impact += 0.7
+        for downstream_id in downstream_ids:
+            downstream_node = self.bpmn_utils.get_node_by_id(downstream_id)
+            if downstream_node and hasattr(downstream_node, 'type'):
+                node_type = downstream_node.type.lower()
+                if 'exclusive' in node_type:
+                    impact += 0.5
+                elif 'parallel' in node_type:
+                    impact += 0.3
+                elif 'inclusive' in node_type:
+                    impact += 0.7
 
         return min(impact, 1.0)
 
@@ -709,8 +761,8 @@ class EnhancedRiskAnalyzer:
         if not node:
             return 0.0
 
-        # Analyze incoming and outgoing connections
-        total_connections = len(node.incoming) + len(node.outgoing)
+        # Count connections only if we have a valid node
+        total_connections = len(getattr(node, 'incoming', [])) + len(getattr(node, 'outgoing', []))
         return min(total_connections / 10, 1.0)
 
     def _calculate_message_flow_impact(self, node_id: str) -> float:
@@ -719,8 +771,9 @@ class EnhancedRiskAnalyzer:
         if not node:
             return 0.0
 
-        # For simplicity, use connection count as proxy for message flows
-        return min(len(node.outgoing) / 5, 1.0)
+        # Count outgoing connections only if we have a valid node
+        outgoing_count = len(getattr(node, 'outgoing', []))
+        return min(outgoing_count / 5, 1.0)
 
     def _calculate_pattern_likelihood(self, node_id: str) -> float:
         """Calculate likelihood based on BPMN patterns"""
@@ -739,8 +792,14 @@ class EnhancedRiskAnalyzer:
 
     def _calculate_gateway_complexity(self, node_id: str) -> float:
         """Calculate complexity of surrounding gateways"""
-        downstream = self.bpmn_utils.get_downstream_nodes(node_id)
-        gateway_count = sum(1 for n in downstream if self.bpmn_utils.is_gateway(n.id))
+        downstream_ids = self.bpmn_utils.get_downstream_nodes(node_id)
+        gateway_count = 0
+
+        for downstream_id in downstream_ids:
+            downstream_node = self.bpmn_utils.get_node_by_id(downstream_id)
+            if downstream_node and self.bpmn_utils.is_gateway(downstream_id):
+                gateway_count += 1
+
         return min(gateway_count / 5, 1.0)
 
     def _count_event_handlers(self, node_id: str) -> float:
@@ -749,9 +808,12 @@ class EnhancedRiskAnalyzer:
         if not node:
             return 0.0
 
-        # Count incoming events
-        event_count = sum(1 for n_id in node.incoming
-                          if 'event' in self.bpmn_utils.get_node_by_id(n_id).type.lower())
+        event_count = 0
+        for incoming_id in node.incoming:
+            source_node = self.bpmn_utils.get_node_by_id(incoming_id)
+            if source_node and hasattr(source_node, 'type') and 'event' in source_node.type.lower():
+                event_count += 1
+
         return min(event_count / 3, 1.0)
 
     def _analyze_boundary_events(self, node_id: str) -> float:
@@ -760,13 +822,19 @@ class EnhancedRiskAnalyzer:
         if not node:
             return 0.0
 
-        # Simplified boundary event analysis
-        return 0.5 if len(node.incoming) > 2 else 0.0
+        # For incoming connections over 2, consider it may have boundary events
+        return 0.5 if len(getattr(node, 'incoming', [])) > 2 else 0.0
 
     def _count_monitoring_points(self, node_id: str) -> float:
         """Count monitoring points in the process"""
-        downstream = self.bpmn_utils.get_downstream_nodes(node_id)
-        monitoring_points = sum(1 for n in downstream if 'gateway' in n.type.lower())
+        downstream_ids = self.bpmn_utils.get_downstream_nodes(node_id)
+        monitoring_points = 0
+
+        for downstream_id in downstream_ids:
+            downstream_node = self.bpmn_utils.get_node_by_id(downstream_id)
+            if downstream_node and hasattr(downstream_node, 'type') and 'gateway' in downstream_node.type.lower():
+                monitoring_points += 1
+
         return min(monitoring_points / 3, 1.0)
 
     def _analyze_event_monitoring(self, node_id: str) -> float:
@@ -775,15 +843,24 @@ class EnhancedRiskAnalyzer:
         if not node:
             return 0.0
 
-        # Check for monitoring-related events
-        event_count = sum(1 for n_id in node.outgoing
-                          if 'event' in self.bpmn_utils.get_node_by_id(n_id).type.lower())
+        event_count = 0
+        for outgoing_id in node.outgoing:
+            target_node = self.bpmn_utils.get_node_by_id(outgoing_id)
+            if target_node and hasattr(target_node, 'type') and 'event' in target_node.type.lower():
+                event_count += 1
+
         return min(event_count / 2, 1.0)
 
     def _analyze_gateway_detection(self, node_id: str) -> float:
         """Analyze gateway-based detection capabilities"""
-        downstream = self.bpmn_utils.get_downstream_nodes(node_id)
-        exclusive_gateways = sum(1 for n in downstream if 'exclusive' in n.type.lower())
+        downstream_ids = self.bpmn_utils.get_downstream_nodes(node_id)
+        exclusive_gateways = 0
+
+        for downstream_id in downstream_ids:
+            downstream_node = self.bpmn_utils.get_node_by_id(downstream_id)
+            if downstream_node and hasattr(downstream_node, 'type') and 'exclusive' in downstream_node.type.lower():
+                exclusive_gateways += 1
+
         return min(exclusive_gateways / 2, 1.0)
 
     def _analyze_message_monitoring(self, node_id: str) -> float:
@@ -792,13 +869,17 @@ class EnhancedRiskAnalyzer:
         if not node:
             return 0.0
 
-        # Use outgoing connections as proxy for message monitoring
-        return min(len(node.outgoing) / 4, 1.0)
+        outgoing_count = len(getattr(node, 'outgoing', []))
+        return min(outgoing_count / 4, 1.0)
 
     def _generate_recommendations(self, severity: float, likelihood: float,
                                   detectability: float, failure_mode: FailureMode) -> List[str]:
         """Generate risk mitigation recommendations"""
         recommendations = []
+
+        node = self.bpmn_utils.get_node_by_id(failure_mode.node_id)
+        if not node:
+            return recommendations
 
         # High severity recommendations
         if severity > 7:
