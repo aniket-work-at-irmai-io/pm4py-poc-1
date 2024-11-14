@@ -383,7 +383,7 @@ def main():
     st.markdown(
         """
         <div style='text-align: center'>
-            <p>© 2024 IRMAI OC Process Mining. All rights reserved.</p>
+            <p>© 2024 IRMAI   OC Process Mining. All rights reserved.</p>
             <p>Professional Process Mining Solutions</p>
         </div>
         """,
