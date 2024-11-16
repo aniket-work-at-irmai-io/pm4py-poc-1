@@ -12,6 +12,7 @@ from pm4py.visualization.bpmn import visualizer as bpmn_visualizer
 from pm4py.algo.evaluation.replay_fitness import algorithm as replay_fitness
 from pm4py.algo.evaluation.precision import algorithm as precision_evaluator
 import os
+from bpmn_exporter import BPMNExporter, generate_bpmn_from_csv
 
 from risk_analysis import ProcessPathAnalyzer, EventLogAnalyzer, EnhancedRiskAnalyzer
 
@@ -87,7 +88,7 @@ def save_uploaded_file(uploaded_file):
 
 
 def process_mining_analysis(csv_path):
-    """Perform process mining analysis similar to test.py"""
+    """Perform process mining analysis"""
     # Read CSV file with semicolon separator
     df = pd.read_csv(csv_path, sep=';')
 
@@ -102,9 +103,10 @@ def process_mining_analysis(csv_path):
     # Convert to event log
     event_log = pm4py.convert_to_event_log(log)
 
-    # Save XES file
-    xes_path = os.path.join('data', 'event_log.xes')
-    pm4py.write_xes(event_log, xes_path)
+    # Create BPMN exporter and export BPMN file
+    exporter = BPMNExporter()
+    bpmn_path = os.path.join('staging', 'fx_trade_process.bpmn')
+    bpmn_graph, _ = exporter.create_and_export_bpmn(event_log, bpmn_path)
 
     # Process Mining with Inductive Miner
     process_tree = inductive_miner.apply(event_log)
@@ -117,9 +119,6 @@ def process_mining_analysis(csv_path):
     pt_gviz = pt_visualizer.apply(process_tree)
     pt_visualizer.save(pt_gviz, "output/fx_trade_process_tree.png")
 
-    # Convert to BPMN and save
-    bpmn_graph = pm4py.convert_to_bpmn(process_tree)
-
     bpmn_gviz = bpmn_visualizer.apply(bpmn_graph)
     bpmn_visualizer.save(bpmn_gviz, "output/fx_trade_bpmn.png")
 
@@ -131,7 +130,6 @@ def process_mining_analysis(csv_path):
     start_activities = pm4py.get_start_activities(event_log)
     end_activities = pm4py.get_end_activities(event_log)
 
-    # Store event_log for risk analysis
     return fitness, precision, start_activities, end_activities, bpmn_graph, event_log
 
 

@@ -20,3 +20,6 @@ deprecation
 networkx
 streamlit
 plotly
+spacy
+PyPDF2
+psutil
