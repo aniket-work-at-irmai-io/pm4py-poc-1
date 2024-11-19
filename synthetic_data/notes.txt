@@ -1,0 +1,19 @@
+Explanation of Key Fields
+
+Field 1 (Reporting Firm Identification Code): The LEI of your firm (e.g., 5493001KJTIIGC8Y1R12).
+Field 6 (Buy/Sell Indicator): 'B' indicates your firm is buying the base currency (EUR) and selling the quote currency (USD).
+Fields 13-16 (Notional Amounts and Currencies): Reflects the amounts of each currency involved in the FX forward.
+Field 17 (Price): The agreed exchange rate for the FX forward.
+Field 22 (Venue): 'XOFF' signifies that the trade was executed OTC (off-exchange).
+Fields 28 & 29 (Buyer/Seller Identification Codes): LEIs of the buyer and seller. Since your firm is buying EUR, your LEI is in the buyer field.
+Fields 32 & 34 (Investment Decision and Execution within Firm): National identifiers of the individuals responsible for the investment decision and execution.
+Fields 41-56 (OTC Derivative Instrument Details): Provide detailed information about the OTC derivative since there's no ISIN.
+Field 64 (Collateralisation): 'UNCO' indicates the transaction is uncollateralised.
+
+
+Additional Notes
+
+Data Privacy: All data provided is fictional and used solely for illustrative purposes.
+Regulatory Compliance: This report structure adheres to the requirements set out in MiFID II RTS 22 for transaction reporting.
+Reporting Timeline: Firms must submit transaction reports to their National Competent Authority (NCA) no later than the close of the following working day (T+1).
+Instrument Scope: FX forwards are reportable under MiFID II when they are not spot contracts and meet the criteria set by the regulation.

@@ -49,7 +49,7 @@ csv_df.rename(columns={
 }, inplace=True)
 
 # Save CSV file with semicolon separator
-csv_path = "staging/fx_trade_log.csv"
+csv_path = "staging/fx_trade_log.csv.bk"
 csv_df.to_csv(csv_path, sep=';', index=False)
 print(f"\nCSV file saved to: {csv_path}")
 
