@@ -5,9 +5,18 @@ import uuid
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 import logging
-from enum import Enum
+import json
+from collections import Counter
 
-logging.basicConfig(level=logging.INFO)
+# Enhanced logging setup
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('fx_trade_generation.log'),
+        logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
 
 
@@ -27,9 +36,41 @@ class FXOptionsConfig:
         self.booking_systems = ["Murex", "Summit", "Calypso", "Internal"]
 
 
-def generate_fx_trade_event_log(num_cases=3000):
-    """Generate synthetic FX options trade event log"""
+class MetadataTracker:
+    """Tracks metadata about generated event log"""
+
+    def __init__(self):
+        self.total_events = 0
+        self.total_cases = 0
+        self.activity_counts = Counter()
+        self.field_usage = Counter()
+        self.client_type_distribution = Counter()
+        self.option_type_distribution = Counter()
+        self.currency_pair_distribution = Counter()
+        self.avg_activities_per_case = 0
+        self.path_variations = set()
+
+    def to_dict(self):
+        return {
+            "total_events": self.total_events,
+            "total_cases": self.total_cases,
+            "activity_distribution": dict(self.activity_counts),
+            "field_usage": dict(self.field_usage),
+            "client_type_distribution": dict(self.client_type_distribution),
+            "option_type_distribution": dict(self.option_type_distribution),
+            "currency_pair_distribution": dict(self.currency_pair_distribution),
+            "avg_activities_per_case": self.avg_activities_per_case,
+            "unique_path_variations": len(self.path_variations)
+        }
+
+
+def generate_fx_trade_event_log(num_cases=30000):
+    """Generate synthetic FX options trade event log with detailed tracking"""
     config = FXOptionsConfig()
+    metadata = MetadataTracker()
+
+    logger.info(f"Starting event log generation for {num_cases} cases")
+
     event_types = [
         "Trade Initiated",
         "Market Data Validation",
@@ -56,7 +97,6 @@ def generate_fx_trade_event_log(num_cases=3000):
         "Trade Reconciliation"
     ]
 
-    # Additional activity sets
     regulatory_activities = [
         "Transaction Reporting Check",
         "Best Execution Validation",
@@ -78,9 +118,17 @@ def generate_fx_trade_event_log(num_cases=3000):
         "KYC Refresh Check"
     ]
 
+    logger.info(f"Core activities: {len(event_types)}")
+    logger.info(f"Regulatory activities: {len(regulatory_activities)}")
+    logger.info(f"Market making activities: {len(market_making_activities)}")
+    logger.info(f"Documentation activities: {len(client_documentation_activities)}")
+
     event_log = []
 
     for case_id in range(1, num_cases + 1):
+        if case_id % 1000 == 0:
+            logger.info(f"Generated {case_id} cases...")
+
         # Determine trade characteristics
         client_type = random.choice(config.client_types)
         option_type = random.choice(config.option_types)
@@ -88,6 +136,11 @@ def generate_fx_trade_event_log(num_cases=3000):
         currency = random.choice(config.currencies)
         trader = random.choice(config.traders)
         booking_system = random.choice(config.booking_systems)
+
+        # Track distributions
+        metadata.client_type_distribution[client_type] += 1
+        metadata.option_type_distribution[option_type] += 1
+        metadata.currency_pair_distribution[currency] += 1
 
         # Build activity sequence
         case_events = event_types.copy()
@@ -102,6 +155,9 @@ def generate_fx_trade_event_log(num_cases=3000):
         if random.random() < 0.4:  # 40% chance of documentation review
             case_events.extend(client_documentation_activities)
 
+        # Track path variation
+        metadata.path_variations.add(tuple(case_events))
+
         # Randomize order of some activities while maintaining core sequence
         core_sequence = case_events[:7]  # Keep initial sequence fixed
         middle_sequence = case_events[7:-5]  # Randomize middle activities
@@ -112,6 +168,8 @@ def generate_fx_trade_event_log(num_cases=3000):
 
         # Generate events with timestamps
         start_time = datetime.now() + timedelta(days=random.randint(-30, 0))
+
+        case_activity_count = 0
 
         for i, event in enumerate(case_events):
             timestamp = start_time + timedelta(minutes=random.randint(10, 60) * i)
@@ -149,23 +207,65 @@ def generate_fx_trade_event_log(num_cases=3000):
                     "theta": round(random.uniform(-1000, 0), 2)
                 })
 
+            # Track metadata
+            metadata.activity_counts[event] += 1
+            metadata.field_usage.update(event_data.keys())
+            case_activity_count += 1
+
             event_log.append(event_data)
+
+        metadata.total_events += case_activity_count
+
+    metadata.total_cases = num_cases
+    metadata.avg_activities_per_case = metadata.total_events / num_cases
+
+    # Log metadata
+    logger.info("\n=== Event Log Generation Complete ===")
+    logger.info(f"Total events generated: {metadata.total_events}")
+    logger.info(f"Average activities per case: {metadata.avg_activities_per_case:.2f}")
+    logger.info(f"Unique path variations: {len(metadata.path_variations)}")
+    logger.info("\nActivity Distribution:")
+    for activity, count in metadata.activity_counts.most_common(10):
+        logger.info(f"  {activity}: {count}")
+    logger.info("\nField Usage:")
+    for field, count in metadata.field_usage.most_common():
+        logger.info(f"  {field}: {count}")
+
+    # Save metadata to JSON
+    with open('event_log_metadata.json', 'w') as f:
+        json.dump(metadata.to_dict(), f, indent=4)
 
     df = pd.DataFrame(event_log)
     df.sort_values(by=["case_id", "timestamp"], inplace=True)
+
+    # Log DataFrame statistics
+    logger.info("\n=== DataFrame Statistics ===")
+    logger.info(f"Shape: {df.shape}")
+    logger.info("\nColumn Info:")
+    for col in df.columns:
+        logger.info(f"  {col}: {df[col].nunique()} unique values")
+
     return df
 
 
 def main():
+    start_time = datetime.now()
+    logger.info(f"Starting FX trade event log generation at {start_time}")
+
     # Generate the event log
-    fx_event_log = generate_fx_trade_event_log(3000)
+    fx_event_log = generate_fx_trade_event_log(30000)
 
     # Save CSV with semicolon separator
-    output_path = "../staging/fx_trade_log.csv"
+    output_path = "fx_trade_log.csv"
     fx_event_log.to_csv(output_path, sep=';', index=False)
 
-    logger.info(f"Generated {len(fx_event_log)} activities")
-    logger.info(f"Event log saved to: {output_path}")
+    end_time = datetime.now()
+    duration = end_time - start_time
+
+    logger.info(f"\n=== Generation Complete ===")
+    logger.info(f"Duration: {duration}")
+    logger.info(f"Output saved to: {output_path}")
+    logger.info(f"Metadata saved to: event_log_metadata.json")
 
 
 if __name__ == "__main__":
