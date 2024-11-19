@@ -1,0 +1,14 @@
+Overview of FX Trading
+Foreign Exchange (FX) trading involves the exchange of one currency for another, typically done to profit from changes in currency values. The market is highly liquid and operates globally, with trades influenced by economic indicators, geopolitical events, and market sentiment23.
+
+Key Stages in an FX Trade
+ - Trade Execution: The initial stage where a trader decides to buy or sell a currency pair based on analysis or strategy.
+ - Trade Capture: Recording the details of the trade into the trading system for further processing.
+ - Risk Assessment: Evaluating the risk associated with the trade to ensure it falls within acceptable limits.
+ - Trade Confirmation: Both parties confirm the details of the trade to avoid discrepancies.
+ - Trade Matching: Ensuring that both sides of the trade agree on terms and conditions.
+ - Settlement Instruction Generation: Preparing instructions for the settlement of the trade.
+ - Clearing: Involves the clearinghouse ensuring that both parties have sufficient funds or securities to settle the trade.
+ - Funding: Ensuring that funds are available for settlement.
+ - Settlement: The actual exchange of currencies occurs.
+ - Reconciliation: Verifying that all records match across systems and any discrepancies are resolved4.
