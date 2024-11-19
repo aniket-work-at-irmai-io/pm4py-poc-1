@@ -109,7 +109,7 @@ def main():
     os.makedirs("staging", exist_ok=True)
 
     # Generate BPMN from example data
-    input_csv = "staging/fx_trade_log.csv"  # Make sure this exists
+    input_csv = "staging/fx_trade_log.csv.bk"  # Make sure this exists
     bpmn_file = generate_bpmn_from_csv(input_csv)
 
     if bpmn_file:
