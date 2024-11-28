@@ -13,8 +13,7 @@ from pm4py.algo.evaluation.replay_fitness import algorithm as replay_fitness
 from pm4py.algo.evaluation.precision import algorithm as precision_evaluator
 import os
 from bpmn_exporter import BPMNExporter, generate_bpmn_from_csv
-
-from risk_analysis import ProcessPathAnalyzer, EventLogAnalyzer, EnhancedRiskAnalyzer
+from risk_analysis import ProcessRiskAnalyzer
 
 # Set up Graphviz path
 os.environ["PATH"] += os.pathsep + 'C:/samadhi/technology/Graphviz/bin'
@@ -153,7 +152,7 @@ def process_mining_with_risk_assessment(event_log, bpmn_graph):
     """Main function to perform risk assessment on process model"""
     try:
         # Initialize risk analyzer with proper parameters
-        risk_analyzer = EnhancedRiskAnalyzer(
+        risk_analyzer = ProcessRiskAnalyzer(
             event_log=event_log,
             bpmn_graph=bpmn_graph
         )
@@ -213,17 +212,34 @@ def visualize_risk_distribution(risk_assessment_results):
     return fig
 
 def main():
-    # Header
-    st.title("🔄 IRMAI Process Analytics")
-    st.markdown("### Process Analytics Tool")
+    # Header with logo and title on the same line
+    col1, col2 = st.columns([1, 6])  # Adjust column proportions as needed
+
+    with col1:
+        st.image("logo.png", width=200)  # Adjust width as needed
+
+    with col2:
+        st.title("IRMAI Risk Monitoring Analytics")
+
+    st.markdown("#### Risk Monitoring Analytics Tool")
 
     # Instructions
-    st.info(
-        "Please install Graphviz and ensure it's in your system PATH (C:/Program Files/Graphviz/bin) before using this tool."
-    )
+    st.info("Upload your Transaction Log, to run process map and risk analysis")
 
-    # File upload
-    uploaded_file = st.file_uploader("Upload your CSV file (semicolon separated)", type=['csv'])
+
+
+    # Create two sections with spacing and alignment
+    col1, col_spacer, col2 = st.columns([2, 0.5, 1.5])  # Adjust spacings for alignment
+
+    with col1:
+        st.subheader("📂 Upload Transaction Log")
+        uploaded_file = st.file_uploader("Upload your Transaction Log", type=['csv'])
+
+    with col2:
+        st.subheader("🌐 Fetch External Data")
+        st.button("Connect to API")
+
+
 
     if uploaded_file is not None:
         try:
@@ -381,8 +397,8 @@ def main():
     st.markdown(
         """
         <div style='text-align: center'>
-            <p>© 2024 IRMAI   OC Process Mining. All rights reserved.</p>
-            <p>Professional Process Mining Solutions</p>
+            <p>© 2024 IRMAI. All rights reserved.</p>
+            <p>Risk Monitoring Analytics Solutions</p>
         </div>
         """,
         unsafe_allow_html=True
@@ -447,10 +463,6 @@ def generate_risk_report_csv(risk_assessment_results):
         ])
 
     return output.getvalue()
-
-
-
-
 
 
 if __name__ == "__main__":

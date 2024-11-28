@@ -1,16 +1,6 @@
 # pm4py-poc-1
 pm4py-poc-1
 
-
-## 1 time setup
----
-cd C:\samadhi\personal\side_hustle\IRMAI\workspace
-python -m venv pm4py-poc-1
-pip install -r requirements.txt
-
-python -m spacy download en_core_web_sm
-python -m spacy download en_core_web_lg
-
 ## On going Runs
 ---
 cd C:\samadhi\personal\side_hustle\IRMAI\workspace
@@ -28,3 +18,15 @@ streamlit run app.py
 ## step 3 : Gap Analysis
 ----
 python gap_analysis.py
+
+
+
+
+## 1 time setup
+---
+cd C:\samadhi\personal\side_hustle\IRMAI\workspace
+python -m venv pm4py-poc-1
+pip install -r requirements.txt
+
+python -m spacy download en_core_web_sm
+python -m spacy download en_core_web_lg

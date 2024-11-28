@@ -1,0 +1,32 @@
+#############################
+#
+#        TOOL 1
+#
+#############################
+
+* Process Mining
+                                    *** MVP - base
+	- Missing Anomalies
+	- we now to implement OC process mining  (TODO : how does OC works)
+	    - problem  >
+	    - solution >
+    - What else is there in industry for "OC process mining"
+
+    - refer OCPM AI , whats out there  (this will tell us what all part we shld include)  ** MVP - Final
+
+* Risk Analysis (FMEA)
+    - revisit risk analysis calc
+    - think about overall risk analysis approach
+    - consider missing / industry std dimensionality
+
+* Gap Analysis
+    - use knowledge graph
+    - how gap analysis being "explainable"
+
+
+* Overall Architecture for all Tool
+    -
+    -
+
+
+
