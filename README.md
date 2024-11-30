@@ -4,6 +4,7 @@ pm4py-poc-1
 ## On going Runs
 ---
 cd C:\samadhi\personal\side_hustle\IRMAI\workspace
+
 pm4py-poc-1\Scripts\activate
 
 ## step 1 : Generate Synthetic FX Trade Event Log
